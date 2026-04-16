@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Лабораторная №7 - Расчет отпусков</title>
+    <style>
+        body {
+            font-family: Verdana, sans-serif;
+            background: #f0f0f0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #2c3e50;
+            color: white;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px;
+            border-radius: 5px;
+        }
+        button {
+            background: #16a085;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1abc9c;
+        }
+        .filter-box {
+            background: #ecf0f1;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .filter-group {
+            display: inline-block;
+            margin-right: 20px;
+        }
+        .result-list {
+            background: #fff;
+            border-left: 5px solid #16a085;
+            padding: 10px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1> Расчет отпусков сотрудников</h1>
+    <p><strong>Условие:</strong> Через 11 месяцев после начала контракта 
+        сотрудник уходит в отпуск на 24 рабочих 
+        дня (без учета субботы и воскресенья).</p>
+
+    <h3> Введите данные 7 сотрудников</h3>
+    <table id="inputTable">
+        <thead>
+            <tr><th>№</th><th>Фамилия</th><th>Дата контракта</th></tr>
+        </thead>
+        <tbody id="inputBody"></tbody>
+    </table>
+    <div style="text-align: center;">
+        <button onclick="calculate()"> Рассчитать отпуска</button>
+        <button onclick="clearAll()"> Очистить всё</button>
+    </div>
+
+    <div id="resultsBlock" style="display: none;">
+        <hr>
+        <h2> Результаты расчетов</h2>
+
+        <h3> Даты начала и окончания отпуска</h3>
+        <table id="resultTable">
+            <thead><tr><th>Фамилия</th><th>Дата контракта</th><th>Начало отпуска 
+                (через 11 мес)</th><th>Конец отпуска (24 раб. дня)</th></tr></thead>
+            <tbody id="resultBody"></tbody>
+        </table>
+
+        <div class="filter-box">
+            <h3> Фильтрация</h3>
+            <div class="filter-group">
+                <label> Отпуск начинается в месяце №:</label>
+                <input type="number" id="monthFilter" min="1" max="12" style="width:60px">
+                <button onclick="filterByMonth()">Найти</button>
+            </div>
+            <div class="filter-group">
+                <label> Отпуск заканчивается в квартале №:</label>
+                <input type="number" id="quarterFilter" min="1" max="4" style="width:60px">
+                <button onclick="filterByQuarter()">Найти</button>
+            </div>
+            <div class="filter-group">
+                <button onclick="filterNextYear()"> Отпуск в следующем году</button>
+            </div>
+            <button onclick="showAll()"> Показать всех</button>
+        </div>
+        <div id="filterResult" class="result-list"></div>
+    </div>
+</div>
+
+<script>
+    let employees = [];
+    
+    function createInputRows() {
+        let tbody = document.getElementById('inputBody');
+        tbody.innerHTML = '';
+        for (let i = 1; i <= 7; i++) {
+            let row = tbody.insertRow();
+            row.insertCell(0).innerText = i;
+            row.insertCell(1).innerHTML = `<input type="text" id="name${i}" placeholder="Фамилия ${i}">`;
+            row.insertCell(2).innerHTML = `<input type="date" id="date${i}">`;
+        }
+    }
+
+    function addWorkingDays(startDate, daysCount) {
+        let current = new Date(startDate);  
+        let added = 0;
+        while (added < daysCount) {
+            current.setDate(current.getDate() + 1); 
+            let dayOfWeek = current.getDay();        
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                added++; 
+            }
+        }
+        return current;
+    }
+
+    function formatDate(date) {
+        let year = date.getFullYear();
+        let month = (date.getMonth() + 1).toString().padStart(2, '0');
+        let day = date.getDate().toString().padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    
+
+
+    function saveToLocalStorage() {
+        let inputData = [];
+        for (let i = 1; i <= 7; i++) {
+            inputData.push({
+                name: document.getElementById(`name${i}`).value,
+                date: document.getElementById(`date${i}`).value
+            });
+        }
+        localStorage.setItem('vacation_inputData', JSON.stringify(inputData));
+        if (employees.length > 0) { localStorage.setItem('vacation_employees', JSON.stringify(employees)); }
+    }
+    
+    
+
+
+
+
+    function loadFromLocalStorage() 
+    {
+        let savedInput = localStorage.getItem('vacation_inputData');
+        if (savedInput) {
+            let inputData = JSON.parse(savedInput);
+            for (let i = 0; i < inputData.length; i++) {
+                let num = i + 1;
+                document.getElementById(`name${num}`).value = inputData[i].name || '';
+                document.getElementById(`date${num}`).value = inputData[i].date || '';
+            }
+        }
+        
+        let savedEmployees = localStorage.getItem('vacation_employees');
+        if (savedEmployees) {
+            employees = JSON.parse(savedEmployees);
+            if (employees.length > 0) {
+                showResultsTable();
+                document.getElementById('resultsBlock').style.display = 'block';
+                showAll();
+            }
+        }
+    }
+    
+
+
+    function calculate() {
+        employees = []; 
+        for (let i = 1; i <= 7; i++) {
+            let lastName = document.getElementById(`name${i}`).value.trim();
+            let contractStr = document.getElementById(`date${i}`).value; 
+            if (lastName === "") {
+                alert(` Введите фамилию для сотрудника №${i}`);
+                return;
+            }
+            if (contractStr === "") {
+                alert(` Выберите дату контракта для ${lastName}`);
+                return;
+            }
+            let contractDate = new Date(contractStr);
+            let vacationStart = new Date(contractDate);
+            vacationStart.setMonth(vacationStart.getMonth() + 11);
+            let vacationEnd = addWorkingDays(vacationStart, 24);
+            employees.push({
+                name: lastName,
+                contract: contractStr,
+                start: vacationStart,
+                end: vacationEnd,
+                startMonth: vacationStart.getMonth() + 1,   
+                startYear: vacationStart.getFullYear(),
+                endMonth: vacationEnd.getMonth() + 1
+            });
+        }
+        showResultsTable();
+        document.getElementById('resultsBlock').style.display = 'block';
+        showAll();
+        saveToLocalStorage(); 
+    }
+    
+    function showResultsTable() {
+        let tbody = document.getElementById('resultBody');
+        tbody.innerHTML = '';
+        for (let emp of employees) {
+            let row = tbody.insertRow();
+            row.insertCell(0).innerText = emp.name;
+            row.insertCell(1).innerText = emp.contract;
+            row.insertCell(2).innerText = formatDate(emp.start);
+            row.insertCell(3).innerText = formatDate(emp.end);
+        }
+    }
+    
+    function filterByMonth() {
+        let month = parseInt(document.getElementById('monthFilter').value);
+        if (isNaN(month) || month < 1 || month > 12) {
+            alert("Введите номер месяца от 1 до 12");
+            return;
+        }
+        let filtered = employees.filter(emp => emp.startMonth === month);
+        showFilterResult(`Сотрудники, у которых отпуск начинается в ${month}-м месяце:`, filtered);
+    }
+    
+    function filterByQuarter() {
+        let quarter = parseInt(document.getElementById('quarterFilter').value);
+        if (isNaN(quarter) || quarter < 1 || quarter > 4) {
+            alert("Введите номер квартала (1, 2, 3 или 4)");
+            return;
+        }
+        let months;
+        if (quarter === 1) months = [1,2,3];
+        else if (quarter === 2) months = [4,5,6];
+        else if (quarter === 3) months = [7,8,9];
+        else months = [10,11,12];
+        let filtered = employees.filter(emp => months.includes(emp.endMonth));
+        showFilterResult(`Сотрудники, у которых отпуск заканчивается в ${quarter}-м квартале:`, filtered);
+    }
+    
+    function filterNextYear() {
+        let currentYear = new Date().getFullYear();
+        let nextYear = currentYear + 1;
+        let filtered = employees.filter(emp => emp.startYear === nextYear);
+        showFilterResult(`Сотрудники, у которых отпуск начинается в ${nextYear} году (следующий год):`, filtered);
+    }
+    
+    function showAll() { 
+        showFilterResult(" Все сотрудники:", employees); 
+    }
+    
+    function showFilterResult(title, filteredArray) {
+        let div = document.getElementById('filterResult');
+        if (filteredArray.length === 0) {
+            div.innerHTML = `<strong>${title}</strong>  Нет сотрудников по этому критерию.`;
+            return;
+        }
+        let html = `<strong>${title}</strong><ul>`;
+        for (let emp of filteredArray) {
+            html += `<li>${emp.name} — начало: ${formatDate(emp.start)}, окончание: ${formatDate(emp.end)}</li>`;
+        }
+        html += `</ul>`;
+        div.innerHTML = html;
+    }
+    
+    function clearAll() {
+        for (let i = 1; i <= 7; i++) {
+            document.getElementById(`name${i}`).value = '';
+            document.getElementById(`date${i}`).value = '';
+        }
+        employees = [];
+        document.getElementById('resultsBlock').style.display = 'none';
+        document.getElementById('filterResult').innerHTML = '';
+        saveToLocalStorage(); 
+    }
+    
+    window.onload = function() {
+        createInputRows();
+        loadFromLocalStorage(); 
+        
+            if (!localStorage.getItem('vacation_inputData')) {
+            document.getElementById('name1').value = 'Иванов';
+            document.getElementById('date1').value = '2025-01-15';
+            document.getElementById('name2').value = 'Петрова';
+            document.getElementById('date2').value = '2025-02-20';
+            document.getElementById('name3').value = 'Сидоров';
+            document.getElementById('date3').value = '2025-03-10';
+            document.getElementById('name4').value = 'Козлов';
+            document.getElementById('date4').value = '2025-04-05';
+            document.getElementById('name5').value = 'Новиков';
+            document.getElementById('date5').value = '2025-05-12';
+            document.getElementById('name6').value = 'Морозова';
+            document.getElementById('date6').value = '2025-06-18';
+            document.getElementById('name7').value = 'Волков';
+            document.getElementById('date7').value = '2025-07-22';
+            saveToLocalStorage();
+        }
+    };
+</script>
+</body>
+</html>
